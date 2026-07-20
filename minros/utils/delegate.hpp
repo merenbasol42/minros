@@ -6,6 +6,8 @@
 
 
 
+namespace minros {
+
 template<typename Ret = void, typename... Args>
 class delegate {
 public:
@@ -28,5 +30,7 @@ private:
     Fn    fn  = nullptr;
     void* obj = nullptr;
 };
+
+} // namespace minros
 
 

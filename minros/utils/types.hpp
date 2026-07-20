@@ -7,6 +7,8 @@
 
 
 
+namespace minros {
+
 using u32 = uint32_t;
 using u16 = uint16_t;
 using u8  = uint8_t;
@@ -38,4 +40,6 @@ using f64 = std::conditional_t<
 
 // compile-time garanti
 static_assert(!std::is_same_v<f64, void>, "f64 bulunamadi");
+
+} // namespace minros
 
