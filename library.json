@@ -16,5 +16,13 @@
   "license": "MIT",
   "frameworks": "*",
   "platforms": "*",
-  "headers": "minros/node.hpp"
+  "headers": "minros/node.hpp",
+  "export": {
+    "include": [
+      "minros",
+      "library.json",
+      "README.md",
+      "LICENSE"
+    ]
+  }
 }
