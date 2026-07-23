@@ -18,7 +18,18 @@
   "platforms": "*",
   "headers": "minros/node.hpp",
   "build": {
-    "srcDir": "minros"
+    "srcFilter": [
+      "+<*>",
+      "-<.git/>",
+      "-<.svn/>",
+      "-<example/>",
+      "-<examples/>",
+      "-<test/>",
+      "-<tests/>",
+      "-<doc/>",
+      "-<docs/>",
+      "-<dev/>"
+    ]
   },
   "export": {
     "include": [
