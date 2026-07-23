@@ -1,5 +1,7 @@
 # minros {#mainpage}
 
+*(**M**inros **I**s **N**ot **ROS** — Türkçesi: "ROS değildir".)*
+
 **minros**, düşük kaynaklı gömülü sistemler için C++17 tabanlı, **header-only** bir
 mesajlaşma kütüphanesidir. Sade bir wire protokolü üzerinden kanal (`CH_ID`) tabanlı
 **yayınla/abone ol** (pub/sub) iletişimi sağlar. ROS'un tanıdık zihinsel modelini
@@ -32,3 +34,22 @@ kanal bloğu ve overlay sözleşmesinin tam anlatımı: `overlays/README.md`.
 
 Tüm sınıf ve namespace referansı için üstteki arama kutusunu ya da soldaki gezinme
 ağacını kullan.
+
+## `minros` İsminin Hikayesi
+
+`minros` adı bir GNU tarzı özyinelemeli kısaltmadır: **m**inros **i**s **n**ot **ros**.
+
+Bu isim, bir projede alt sistemin (MCU) üst sistemle (PC) haberleşmesini çözerken
+ortaya çıktı. Üst sistem ROS2 ile yazıldığından, diğer projelerde olduğu gibi
+micro-ROS kullanılması planlanıyordu. Ama micro-ROS bu iş için gereğinden ağır
+kaldı; istenen şey kanal tabanlı, hafif bir protokoldü. Zaten projedeki alt
+sistem soyutlama katmanı sayesinde bu protokol ROS2'ye doğrudan bağlı
+olmayacaktı — madem bir şekilde bir protokol yazılacaktı ve ortalıkta bu
+sadelikte kanal tabanlı pub/sub çözümü yoktu, kendi protokolümüzü yazmaya
+karar verildi.
+
+Bunu anlatırken sürekli "kendi ROS'unuzu mu yapıyorsunuz?" tepkisiyle
+karşılaşıldı. Bu karışıklığı çözmek yerine kucaklamak için ismin GNU'nun
+özyinelemeli kısaltma geleneğine göz kırpması istendi; önce akla gelen `nros`
+oldu. Sonra, micro-ROS yerine tercih edilmesi ve mikrodenetleyicide — yani
+*minimum* kaynakla — çalışacak olması birleşince isim netleşti: **minros**.
