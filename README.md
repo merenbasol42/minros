@@ -244,39 +244,6 @@ void loop() {
 
 ---
 
-## Geliştirme / Test Ortamı (`dev/`)
-
-Depo kökündeki `dev/`, kütüphaneyi gerçek donanımda (ESP32-S3) deneymek için
-kullanılan, kendi başına tam bir PlatformIO projesidir. minros'u yayınlanmış bir
-sürümden değil, **depo kökündeki canlı kaynaktan** symlink ile çeker:
-
-```ini
-# dev/platformio.ini
-[env]
-lib_deps = symlink://..
-```
-
-Böylece `minros/` altındaki header'ları düzenle → `dev/` içinde derle → beğenince
-tek repoda commit et; ayrı bir test reposu ya da sürüm yükseltme gerekmez.
-
-```bash
-cd dev
-pio run                 # esp32s3box için derle
-pio run -t upload       # cihaza yükle
-pio test                # birim + haberleşme testleri
-```
-
-VSCode'da IntelliSense için `dev/` klasörünü **doğrudan** aç (PlatformIO
-`platformio.ini`'yi orada bulur); gerekirse `pio project init --ide vscode` ile
-`c_cpp_properties.json` yenilenir. `tools/` altında host tarafı Python betikleri
-(latency/throughput/ACK testleri, minrospy sink) bulunur.
-
-`dev/` yalnızca geliştirme içindir; `library.json`'daki `export.include` sayesinde
-PlatformIO ile kütüphaneyi kuran kullanıcılara **gitmez** — onlara yalnızca
-`minros/` kaynağı paketlenir.
-
----
-
 ## Sınırlar
 
 - Thread-safe değildir; tipik kullanım tek döngü/thread içindir.

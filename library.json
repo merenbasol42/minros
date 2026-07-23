@@ -27,8 +27,7 @@
       "-<test/>",
       "-<tests/>",
       "-<doc/>",
-      "-<docs/>",
-      "-<dev/>"
+      "-<docs/>"
     ]
   },
   "export": {
