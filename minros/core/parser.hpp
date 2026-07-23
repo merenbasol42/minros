@@ -4,15 +4,19 @@
 #include <minros/core/wireframe.hpp>
 
 
+/// @file parser.hpp
+/// @brief Parser — gelen wire byte akışını durum makinesiyle ayrıştırıp tamamlanan frame'leri bildiren çekirdek bileşen.
+
 namespace minros::core {
 
-    // Checksum: CRC-8/SMBUS (polinom 0x07, init 0x00).
-    // wireframe::crc8_update paylaşılan implementasyon — Framer ile tutarlı.
-    //
-    // Template parametreler:
-    //   MAX_DATA — DATA alanının maksimum uzunluğu (varsayılan wireframe::MAX_DATA_LEN).
-    //              Küçük tutulursa buffer belleği doğrudan küçülür.
-    //
+    /// @brief Wire byte akışını @ref wireframe düzenine göre ayrıştırır.
+    ///
+    /// Checksum: CRC-8/SMBUS (polinom 0x07, init 0x00).
+    /// @ref wireframe::crc8_update paylaşılan implementasyon — @ref Framer ile tutarlı.
+    ///
+    /// @tparam MAX_DATA DATA alanının maksimum uzunluğu (varsayılan
+    ///                  @ref wireframe::MAX_DATA_LEN). Küçük tutulursa buffer
+    ///                  belleği doğrudan küçülür.
     template<u8 MAX_DATA = wireframe::MAX_DATA_LEN>
     class Parser {
         static_assert(MAX_DATA >= wireframe::MIN_DATA_LEN &&
@@ -26,27 +30,29 @@ namespace minros::core {
             1u /* checksum field */;
 
     public:
-        // Parser hata kodları.
-        //   INVALID_LENGTH — length alanı MIN_DATA_LEN'den küçük veya MAX_DATA sınırını aşıyor
-        //   CRC_MISMATCH   — alınan CRC hesaplanan CRC ile eşleşmiyor
+        /// @brief Parser hata kodları.
         enum class Error : u8 {
-            INVALID_LENGTH,
-            CRC_MISMATCH,
+            INVALID_LENGTH,  ///< length alanı MIN_DATA_LEN'den küçük veya MAX_DATA sınırını aşıyor.
+            CRC_MISMATCH,    ///< alınan CRC hesaplanan CRC ile eşleşmiyor.
         };
 
+        /// @brief Tamamlanan frame callback imzası: `fn(buffer, data_start, data_len, ctx)`.
         using FrameCallback = utils::delegate<void, u8*, u8, u8>;
+        /// @brief Ayrıştırma hatası callback imzası: `fn(Error, ctx)`.
         using ErrorCallback = utils::delegate<void, Error>;
 
+        /// @brief `write_window()`'ın döndürdüğü, doğrudan yazılabilir bölge.
         struct Slice { u8* data; u8 size; };
 
         Parser() { reset(); }
 
-        // Doğrudan yazılabilecek bölgeyi döner — zero-copy okuma için.
+        /// @brief Doğrudan yazılabilecek bölgeyi döner — zero-copy okuma için.
         Slice write_window() {
             return { buffer + write_pos, static_cast<u8>(BUFFER_SIZE - write_pos) };
         }
 
-        // write_window()'a n bayt yazıldıktan sonra çağrılır; parse eder.
+        /// @brief `write_window()`'a n bayt yazıldıktan sonra çağrılır; parse eder.
+        /// @param n `write_window()`'dan alınan bölgeye yazılan bayt sayısı.
         void commit(u8 n) {
             write_pos += n;
             while (parse_pos < write_pos) {
@@ -54,7 +60,9 @@ namespace minros::core {
             }
         }
 
+        /// @brief Bir frame tamamlandığında çağrılacak callback'i ayarlar.
         void set_on_frame_completed(FrameCallback cb) { on_frame_completed = cb; }
+        /// @brief Ayrıştırma hatası oluştuğunda çağrılacak callback'i ayarlar.
         void set_on_error(ErrorCallback cb)           { on_error = cb; }
 
     private:

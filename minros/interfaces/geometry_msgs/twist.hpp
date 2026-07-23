@@ -3,16 +3,19 @@
 #include "minros/interfaces/msg_base.hpp"
 #include "vector3.hpp"
 
+/// @file twist.hpp
+/// @brief Twist — doğrusal + açısal hız mesajı (geometry_msgs).
+
 namespace minros::interfaces::geometry_msgs {
 
+/// @brief Doğrusal + açısal hız (`linear`, `angular`) — 24 byte, little-endian wire.
 struct Twist : MsgBase<Twist> {
 
     friend struct MsgBase<Twist>;
 
-    // linear (12) + angular (12) = 24 byte
-    static constexpr u8  SIZE      = 2u * Vector3::SIZE;
-    static constexpr u8  FAMILY_ID = 0x01;   // geometry_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x02;   // geometry_msgs-yerel: TWIST
+    static constexpr u8  SIZE      = 2u * Vector3::SIZE;  ///< linear (12) + angular (12) = 24 byte.
+    static constexpr u8  FAMILY_ID = 0x01;   ///< geometry_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x02;   ///< geometry_msgs-yerel: TWIST.
 
     Vector3 linear;
     Vector3 angular;

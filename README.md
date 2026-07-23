@@ -45,6 +45,12 @@ node.transport = {
 
 Şu an UART üzerinde denenmekte olup aynı çekirdek kodun transport callback'leri değiştirilerek UDP gibi farklı ortamlara da taşınabilmesi amaçlanmaktadır.
 
+### Zero-copy, LE ham byte
+
+Wire little-endian'dır; hedef MCU'ların çoğu da LE olduğundan storage'ın bellek
+görüntüsü wire byte'larıyla örtüşür ve serileştirme `memcpy` düzeyinde kalır
+(bkz. [Wire Protokolü](#wire-protokolü), `utils/endian.hpp`).
+
 ### Basitlik
 
 Arayüzün kasıtlı olarak küçük tutulması hedeflenmektedir.
@@ -97,47 +103,20 @@ normal bir kanaldan (CH249) yollar. `Node` gerektirmez — ham `RawNode` ile de 
 ## Overlay'ler
 
 Overlay, çekirdeğe (core + `RawNode`) hiçbir şey eklemeden onun **public
-`publish`/`subscribe` API'sini kullanan bağımsız bir katmandır. Ortak özellikleri:
+`publish`/`subscribe` API'sini kullanan bağımsız bir katmandır. Ortak sözleşme
+(core'a dokunmama, rezerve kanal + opak head öneki, kullanılmazsa sıfır
+maliyet) ve rezerve kanal bloğu tablosunun sahibi:
+[`minros/overlays/README.md`](minros/overlays/README.md).
 
-- **Core'u değiştirmez.** Kendi meta verisini (seq, flags gibi) PAYLOAD'ın önüne
-  *opak bir önek* olarak koyar; core bunun anlamını bilmez.
-- **Kendi rezerve kanalını kullanır.** Kullanıcı kanallarıyla çakışmaması için
-  üst kanal bloğu overlay'lere ayrılmıştır.
-- **`Node` gerektirmez.** Ham `RawNode` ile de takılabilir; `Node` yalnızca
-  bunları tipli API altında bir araya getiren bir kolaylıktır.
-- **Bedeli seçime bağlıdır.** Kullanılmayan overlay kod/RAM maliyeti getirmez.
-
-### Rezerve kanal bloğu
-
-| Kanal | Overlay | Durum |
-|------:|---------|-------|
-| 249 | reliability ACK | mevcut |
-| 248 | logging | mevcut |
-| 247 / 246 | parameters (REQ / RES) | planlanan |
-
-### reliability — güvenilir teslim
-
-`minros::overlays::reliability::Reliable` (`overlays/reliability/reliable.hpp`)
-
-Stop-and-wait (pencere = 1): kanal başına aynı anda en fazla 1 uçuştaki frame.
-Seq'i payload önüne 1 baytlık opak önek olarak koyar, ACK'i CH249'dan yollar;
-timeout'ta aynı pointer'dan yeniden gönderir (payload kopyalanmaz). Subscriber
-tarafında duplicate filtreler ve ACK'i otomatik üretir.
-
-### logging — best-effort log yayını
-
-`minros::overlays::logging::Logger` (`overlays/logging/logger.hpp`), `Node` üzerinden
-`log_info` / `log_error` vb. ile kullanılır.
-
-CH248'den yalnızca **yayın** yapar; zero-buffer'dır (string literal flash'ta kalır).
-Eşik altındaki seviyeler wire'a hiç dokunmadan döner, uzun mesaj otomatik parçalanır.
-Log **almak** için host tarafında bir sink kullanılır (minrospy Python sink).
-
-### parameters — çalışma-zamanı yapılandırma (planlanan)
-
-Düğümlerin parametrelerini (kazanç, eşik, mod) host tarafından okunup/yazılabilir
-kılar. İki kanal (REQ/RES), sayısal `[FAMILY_ID][TYPE_ID]` tip tanımlayıcısı ve
-sabit-boyutlu değerler üzerine kurgulanır. Ayrıntı: `overlays/parameters/`.
+- **reliability** (CH249) — stop-and-wait ACK + retransmit ile güvenilir
+  teslim; subscriber tarafında dedup + otomatik ACK. Ayrıntı:
+  [`reliability-protocol.md`](minros/overlays/reliability/reliability-protocol.md).
+- **logging** (CH248) — seviyeli, best-effort log yayını; kaynakta zero-buffer,
+  uzun satır otomatik parçalanır. Ayrıntı:
+  [`logging-protocol.md`](minros/overlays/logging/logging-protocol.md).
+- **parameters** (CH247 REQ / CH246 RES) — düğüm parametrelerini host'tan
+  oku/yaz (get/set); kayıtlar derleme-zamanı `constexpr` tablo, RAM tüketmez.
+  Ayrıntı: [`parameters-protocol.md`](minros/overlays/parameters/parameters-protocol.md).
 
 ---
 

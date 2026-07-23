@@ -2,16 +2,19 @@
 #include <cstring>
 #include "minros/interfaces/msg_base.hpp"
 
+/// @file pid_gains.hpp
+/// @brief PidGains — PID kontrolör katsayıları mesajı (std_msgs).
+
 namespace minros::interfaces::std_msgs {
 
+/// @brief PID kontrolör katsayıları (`kp`, `ki`, `kd`) — 12 byte, little-endian wire.
 struct PidGains : MsgBase<PidGains> {
 
     friend struct MsgBase<PidGains>;
 
-    // kp (4) + ki (4) + kd (4) = 12 byte
-    static constexpr u8  SIZE      = 3u * sizeof(float);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x0B;   // std_msgs-yerel: PID_GAINS
+    static constexpr u8  SIZE      = 3u * sizeof(float);  ///< kp (4) + ki (4) + kd (4) = 12 byte.
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x0B;   ///< std_msgs-yerel: PID_GAINS.
 
     float kp{0.0f};
     float ki{0.0f};

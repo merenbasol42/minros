@@ -2,15 +2,19 @@
 #include <cstring>
 #include "minros/interfaces/msg_base.hpp"
 
+/// @file quaternion.hpp
+/// @brief Quaternion — birim kuaterniyon mesajı (geometry_msgs).
+
 namespace minros::interfaces::geometry_msgs {
 
+/// @brief Birim kuaterniyon (x, y, z, w) — 16 byte, little-endian wire.
 struct Quaternion : MsgBase<Quaternion> {
 
     friend struct MsgBase<Quaternion>;
 
-    static constexpr u8  SIZE      = 4u * sizeof(float);  // 16 byte
-    static constexpr u8  FAMILY_ID = 0x01;   // geometry_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x01;   // geometry_msgs-yerel: QUATERNION
+    static constexpr u8  SIZE      = 4u * sizeof(float);  ///< 16 byte.
+    static constexpr u8  FAMILY_ID = 0x01;   ///< geometry_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x01;   ///< geometry_msgs-yerel: QUATERNION.
 
     float x{0.0f};
     float y{0.0f};

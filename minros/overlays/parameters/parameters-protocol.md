@@ -1,4 +1,6 @@
-# minros parameters overlay — wire protokolü
+# Parameters overlay — wire protokolü {#minros-overlays-parameters-protocol}
+
+durum: mevcut
 
 Parametre (parameter) overlay'i, düğümlerin çalışma-zamanı yapılandırma
 değerlerini (kazanç, eşik, mod vb.) host tarafından **okunup/yazılabilir** hâle
@@ -58,14 +60,7 @@ Parametre trafiği **iki ayrı kanal** kullanır — istek ve yanıt için birer
 Bu ayrım şart, çünkü **reliability overlay'i kanal başına tek publisher varsayar**
 (stop-and-wait, kanal başına tek `seq`/ACK uzayı). Her kanalda tek publisher
 olunca reliability temiz çalışır. Yön kanalla, işlem op-code ile ayrılır.
-
-Rezerve kanal bloğu (overlay'ler, kullanıcı kanallarıyla çakışmasın diye üstten):
-
-| Kanal | Overlay |
-|------:|---------|
-| 249 | reliability ACK |
-| 248 | logging |
-| 247 / 246 | **parameters** (REQ / RES) |
+Rezerve kanal bloğu: [`overlays/README.md`](../README.md) kanal tablosu.
 
 ## Wire mesajları
 

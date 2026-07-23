@@ -4,19 +4,20 @@
 #include "types.hpp"
 #include <cstring>
 
-//
-// Wire formatı little-endian'dır.
-// Bu başlık, host endianness'ını compile-time'da saptar ve
-// store_le / load_le ile şeffaf dönüşüm sağlar.
-//
-// Little-endian platformlarda (ARM Cortex-M, x86/x64) tüm bswap
-// çağrıları if constexpr sayesinde derleme aşamasında elenir → sıfır overhead.
-// Big-endian platformlarda swap otomatik uygulanır.
-//
-// Kullanım:
-//   utils::endian::store_le<float>(buf, value);    // host → little-endian buffer
-//   float v = utils::endian::load_le<float>(buf);  // little-endian buffer → host
-//
+/// @file endian.hpp
+/// @brief store_le / load_le — host endianness'ından bağımsız little-endian dönüşümü.
+///
+/// Wire formatı little-endian'dır. Bu başlık, host endianness'ını compile-time'da
+/// saptar ve `store_le` / `load_le` ile şeffaf dönüşüm sağlar.
+///
+/// @note Little-endian platformlarda (ARM Cortex-M, x86/x64) tüm bswap
+///       çağrıları `if constexpr` sayesinde derleme aşamasında elenir → sıfır
+///       overhead. Big-endian platformlarda swap otomatik uygulanır.
+///
+/// @code
+/// utils::endian::store_le<float>(buf, value);    // host → little-endian buffer
+/// float v = utils::endian::load_le<float>(buf);  // little-endian buffer → host
+/// @endcode
 
 namespace minros::utils::endian {
 
@@ -26,6 +27,7 @@ namespace minros::utils::endian {
 // Makro tanımlı değilse (MSVC vb.) little-endian varsayılır; bu durum
 // tüm hedef MCU platformlarını (Cortex-M, ESP32, AVR) kapsar.
 
+/// @brief Host'un little-endian olup olmadığı (compile-time sabiti).
 #if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__) && \
     (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
     constexpr bool NATIVE_IS_LITTLE = false;
@@ -70,7 +72,10 @@ inline float bswap(float v) noexcept {
 
 // ── store_le / load_le ───────────────────────────────────────────────────────
 
-// host değerini little-endian olarak buf'a yazar
+/// @brief Host değerini little-endian olarak `buf`'a yazar.
+/// @tparam T     Yazılacak değerin tipi.
+/// @param  buf   Hedef buffer (en az `sizeof(T)` bayt).
+/// @param  value Host endianness'ında değer.
 template<typename T>
 inline void store_le(u8* buf, T value) noexcept {
     if constexpr (!NATIVE_IS_LITTLE) {
@@ -79,7 +84,10 @@ inline void store_le(u8* buf, T value) noexcept {
     memcpy(buf, &value, sizeof(T));
 }
 
-// buf'taki little-endian değeri host endianness'ına çevirerek döndürür
+/// @brief `buf`'taki little-endian değeri host endianness'ına çevirerek döndürür.
+/// @tparam T   Okunacak değerin tipi.
+/// @param  buf Kaynak buffer (en az `sizeof(T)` bayt, little-endian).
+/// @return Host endianness'ında değer.
 template<typename T>
 inline T load_le(const u8* buf) noexcept {
     T value;

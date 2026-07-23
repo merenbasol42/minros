@@ -3,47 +3,45 @@
 #include "minros/utils/utils.hpp"
 #include <minros/overlays/reliability/reliability_protocol.hpp>
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Reliable — minros güvenilirlik (reliability) overlay'i
-//
-// RawNode'un public pub/sub API'sini kullanan bağımsız bir kullanıcıdır. Core'a
-// hiçbir şey eklemez: seq'i, payload'ın önüne opak bir baytlık önek olarak koyar
-// ve ACK'i normal bir kanaldan (CH249) yollar. Node gerektirmez — ham RawNode ile
-// de kullanılabilir.
-//
-// Stop-and-wait (window = 1): kanal başına aynı anda en fazla 1 uçuştaki frame.
-// Bu yüzden payload KOPYALANMAZ; yalnızca (const u8* + len + seq) tutulur ve
-// timeout'ta tick() o pointer'dan kendisi yeniden gönderir.
-//
-// Kullanıcı sözleşmesi (publisher):
-//   publish(ch, buf, len) çağrıldıktan sonra, ACK gelene (can_send(ch) tekrar
-//   true olana) kadar buf bozulmamalıdır — Reliable yalnızca pointer'ını tutar.
-//
-// Kullanım:
-//   RawNode<> node;
-//   reliability::Reliable rel{node};         // node'a takılır, ACK kanalına abone olur
-//
-//   rel.subscribe(ch, {on_data, ctx});       // fn(payload, len, ctx) — seq/dedup/ACK gizli
-//
-//   // loop:
-//   node.spin_once();
-//   rel.tick();
-//
-//   if (rel.can_send(ch)) { fill(buf); rel.publish(ch, buf, len); }
-//
-// Template parametreler:
-//   NodeT      — taşıyıcı node tipi (publish/subscribe/transport.get_time gerektirir)
-//   MAX_PUB    — güvenilir publisher kanal sayısı
-//   MAX_SUB    — güvenilir subscriber kanal sayısı
-//   MAX_RETRY  — maksimum retransmit denemesi
-//   TIMEOUT_MS — ACK bekleme süresi (ms)
-//
-// ─────────────────────────────────────────────────────────────────────────────
+/// @file reliable.hpp
+/// @brief Reliable — minros güvenilirlik (reliability) overlay'i.
+///
+/// RawNode'un public pub/sub API'sini kullanan bağımsız bir kullanıcıdır. Core'a
+/// hiçbir şey eklemez: seq'i, payload'ın önüne opak bir baytlık önek olarak koyar
+/// ve ACK'i normal bir kanaldan (CH249) yollar. Node gerektirmez — ham RawNode ile
+/// de kullanılabilir.
+///
+/// Stop-and-wait (window = 1): kanal başına aynı anda en fazla 1 uçuştaki frame.
+/// Bu yüzden payload KOPYALANMAZ; yalnızca `(const u8* + len + seq)` tutulur ve
+/// timeout'ta `tick()` o pointer'dan kendisi yeniden gönderir.
+///
+/// @warning Kullanıcı sözleşmesi (publisher): `publish(ch, buf, len)`
+///          çağrıldıktan sonra, ACK gelene (`can_send(ch)` tekrar `true` olana)
+///          kadar `buf` bozulmamalıdır — Reliable yalnızca pointer'ını tutar.
+///
+/// @code
+/// RawNode<> node;
+/// reliability::Reliable rel{node};         // node'a takılır, ACK kanalına abone olur
+///
+/// rel.subscribe(ch, {on_data, ctx});       // fn(payload, len, ctx) — seq/dedup/ACK gizli
+///
+/// // loop:
+/// node.spin_once();
+/// rel.tick();
+///
+/// if (rel.can_send(ch)) { fill(buf); rel.publish(ch, buf, len); }
+/// @endcode
 
 namespace minros {
 namespace overlays {
 namespace reliability {
 
+/// @brief ACK + retransmit ile güvenilir teslim sağlayan overlay (stop-and-wait, window=1).
+/// @tparam NodeT      Taşıyıcı node tipi (publish/subscribe/transport.get_time gerektirir).
+/// @tparam MAX_PUB    Güvenilir publisher kanal sayısı.
+/// @tparam MAX_SUB    Güvenilir subscriber kanal sayısı.
+/// @tparam MAX_RETRY  Maksimum retransmit denemesi.
+/// @tparam TIMEOUT_MS ACK bekleme süresi (ms).
 template<
     class NodeT,
     u8 MAX_PUB    = 4,
@@ -53,18 +51,19 @@ template<
 >
 class Reliable {
 public:
-    // fn(payload, len, ctx) — seq önekı ayıklanmış, kullanıcı verisi.
+    /// @brief Veri callback imzası: `fn(payload, len, ctx)` — seq önekı ayıklanmış, kullanıcı verisi.
     using DataCallback = utils::delegate<void, u8*, u8>;
 
+    /// @brief Reliable hata kodları.
     enum class Error : u8 {
-        MAX_RETRIED
+        MAX_RETRIED  ///< `MAX_RETRY` denemesi de ACK'lenmedi; publisher pes etti.
     };
 
-    // fn(ch_id, err_code, ctx)
+    /// @brief Hata callback imzası: `fn(ch_id, err_code, ctx)`.
     using ErrorCallback = utils::delegate<void, u8, Error>;
 
 
-    // node'u tutar ve ACK kanalına (CH249) abone olur.
+    /// @brief Node'u tutar ve ACK kanalına (CH249) abone olur.
     explicit Reliable(NodeT& node) : node_(&node) {
         node_->subscribe(protocol::ACK_CHANNEL_ID, {&Reliable::ack_thunk, this});
     }
@@ -72,11 +71,16 @@ public:
     Reliable(const Reliable&)            = delete;  // subs_/this pointer'ları node'a kayıtlı
     Reliable& operator=(const Reliable&) = delete;
 
+    /// @brief `MAX_RETRIED` hatası oluştuğunda çağrılacak callback'i ayarlar.
     void set_err_cb(ErrorCallback cb) { on_err_ = cb; }
 
 
     // ── Güvenilir subscriber ───────────────────────────────────────────────
-    // Dedup + otomatik ACK içeride; cb yalnızca yeni mesajda çağrılır.
+
+    /// @brief Güvenilir abonelik kaydeder. Dedup + otomatik ACK içeride; `cb` yalnızca yeni mesajda çağrılır.
+    /// @param ch Kanal kimliği.
+    /// @param cb Yeni (dedup'lanmamış) mesaj geldiğinde çağrılacak callback.
+    /// @return Subscriber slotu (`MAX_SUB`) doluysa veya `cb` geçersizse `false`.
     bool subscribe(u8 ch, DataCallback cb) {
         if (sub_count_ >= MAX_SUB || !cb.is_valid()) return false;
 
@@ -92,17 +96,25 @@ public:
 
     // ── Güvenilir publisher ────────────────────────────────────────────────
 
-    // Pub slotunu önceden ayır (opsiyonel — publish ilk çağrıda da ayırır).
+    /// @brief Pub slotunu önceden ayırır (opsiyonel — `publish` ilk çağrıda da ayırır).
+    /// @return Slot ayrılamazsa (`MAX_PUB` doluysa) `false`.
     bool register_pub(u8 ch) { return get_or_add_pub(ch) != nullptr; }
 
-    // Bu kanalda yeni reliable mesaj gönderilebilir mi (önceki ACK'lendi mi)?
+    /// @brief Bu kanalda yeni reliable mesaj gönderilebilir mi (önceki ACK'lendi mi)?
     bool can_send(u8 ch) const {
         const PubEntry* p = find_pub(ch);
         return !p || !p->ack_pending;
     }
 
-    // Güvenilir gönder. ack_pending ise false döner (buf'a dokunma).
-    // Reliable yalnızca payload'ın pointer'ını tutar; ACK'e kadar sabit kalmalı.
+    /// @brief Güvenilir gönderir.
+    ///
+    /// @warning Reliable yalnızca payload'ın pointer'ını tutar; ACK'e kadar
+    ///          sabit kalmalı.
+    ///
+    /// @param ch      Kanal kimliği.
+    /// @param payload Kullanıcı verisi (pointer, ACK'e kadar bozulmamalı).
+    /// @param len     `payload` uzunluğu.
+    /// @return Önceki mesaj hâlâ `ack_pending` ise (bkz. @ref can_send) `false` döner (`buf`'a dokunma).
     bool publish(u8 ch, const u8* payload, u8 len) {
         PubEntry* p = get_or_add_pub(ch);
         if (!p || p->ack_pending) return false;
@@ -118,7 +130,8 @@ public:
 
 
     // ── Periyodik timeout kontrolü ─────────────────────────────────────────
-    // Her ana döngüde çağır.
+
+    /// @brief ACK zaman aşımlarını denetler; gerekirse yeniden gönderir. Her ana döngüde çağrılır.
     void tick() {
         const u32 t = now();
         for (u8 i = 0; i < pub_count_; i++) {

@@ -1,4 +1,4 @@
-# minros overlays
+# Overlays {#minros-overlays}
 
 **Overlay**, minros çekirdeğinin (core) *üzerine* oturan ama çekirdeğe hiçbir şey
 eklemeyen bağımsız bir protokol katmanıdır. Her overlay yalnızca `RawNode`'un
@@ -7,14 +7,15 @@ framer, parser, broker ve wire formatı overlay'lerden habersizdir.
 
 Bu klasördeki katmanlar:
 
-| Overlay | Kanal | Ne yapar |
-|---|---|---|
-| [`reliability`](reliability/) | **249** (ACK) | ACK + retransmit ile güvenilir teslim (stop-and-wait, window=1) |
-| [`logging`](logging/) | **248** | Seviyeli, best-effort log yayını + parça birleştirme (sink) |
+| Overlay | Kanal | Durum | Ne yapar |
+|---|---|---|---|
+| \subpage minros-overlays-reliability "reliability" | **249** (ACK) | mevcut | ACK + retransmit ile güvenilir teslim (stop-and-wait, window=1) |
+| \subpage minros-overlays-logging "logging" | **248** | mevcut | Seviyeli, best-effort log yayını + parça birleştirme (sink) |
+| \subpage minros-overlays-parameters "parameters" | **247** (REQ) / **246** (RES) | mevcut | Düğüm parametrelerini host'tan oku/yaz (get/set), derleme-zamanı tablo |
 
 Namespace / paket:
-- C++ : `minros::overlays::reliability`, `minros::overlays::logging`
-- Python : `minrospy.overlays.reliability`, `minrospy.overlays.logging`
+- C++ : `minros::overlays::reliability`, `minros::overlays::logging`, `minros::overlays::parameters`
+- Python : `minrospy.overlays.reliability`, `minrospy.overlays.logging`, `minrospy.overlays.parameters`
 
 ---
 
@@ -35,9 +36,10 @@ Overlay'ler arası kanal çakışmasını önlemek için üst blok rezerve edilm
 
 ```
 Rezerve protokol kanal bloğu
-    249 = reliability ACK
-    248 = logging
-    ...  (yeni overlay'ler buradan aşağı doğru)
+    249       = reliability ACK
+    248       = logging
+    247 / 246 = parameters (REQ / RES)
+    ...       (yeni overlay'ler buradan aşağı doğru)
 ```
 
 Kullanıcı kanalları bu bloğa girmemelidir.
@@ -46,7 +48,8 @@ Kullanıcı kanalları bu bloğa girmemelidir.
 Overlay'ler template parametreleriyle (C++) / kurucu argümanlarıyla (Python)
 boyutlanır; heap ve sanal dispatch kullanmaz. Kullanılmayan bir overlay ideal
 olarak RAM/flash maliyeti getirmez (ör. `logging::Logger` yayıncısı zero-buffer;
-reassembly buffer'ı yalnızca `LogSink`'te).
+reassembly buffer'ı yalnızca `LogSink`'te; `parameters` registry'si `.rodata`'da
+yaşar, RAM tüketmez).
 
 ### 4. İki dilde simetri
 C++ (`minros`) ve Python (`minrospy`) portları aynı wire formatını üretir. Bir
@@ -55,28 +58,11 @@ uyum doğrulanabilir.
 
 ---
 
-## Katmanların özeti
-
-### reliability
-Publisher ACK gelene kadar yeni mesaj göndermez (`can_send` false); ACK gelmezse
-`tick()` timeout'ta payload'ı otonom yeniden gönderir (kopya tutar / pointer
-tutar, retransmit callback'i yoktur). Subscriber tarafı dedup + otomatik ACK
-yapar. Head öneki: 1 baytlık `SEQ`. Ayrıntı: [reliability/](reliability/).
-
-### logging
-Best-effort (unreliable) seviyeli log. Kaynakta `min_level` filtresi eşik altı
-çağrıları wire'a hiç dokundurmaz. Uzun satır, küçük frame'lerde otomatik
-parçalanır; sink `SEQ4` sürekliliğiyle kayıp parçayı tespit edip bozuk satır
-üretmez. Head öneki: 1 baytlık `FLAGS` (`LAST | LEVEL | SEQ4`). Ayrıntı:
-[logging/](logging/).
-
----
-
 ## Yeni bir overlay eklemek
 
-1. Rezerve bloktan bir kanal seç (248'in altından) ve buradaki tabloya ekle.
+1. Rezerve bloktan bir kanal seç (246'nın altından) ve buradaki tabloya ekle.
 2. Meta verini **opak head öneki** olarak tasarla; core'a alan ekleme.
 3. `RawNode`'a takılan bağımsız bir sınıf yaz (`publish`/`subscribe` kullanır).
    Kullanılmadığında maliyet getirmeyecek şekilde publisher/sink'i ayır.
 4. C++ ve Python portlarını birlikte yaz; aynı wire formatını üret.
-5. İstersen `Node` facade'ına ince bir API ekle (reliability/logging gibi).
+5. İstersen `Node` facade'ına ince bir API ekle (reliability/logging/parameters gibi).

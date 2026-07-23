@@ -2,15 +2,20 @@
 #include <cstring>
 #include "minros/interfaces/msg_base.hpp"
 
+/// @file primitives.hpp
+/// @brief İlkel skaler mesaj tipleri (std_msgs): Float32, Int32, Int16, Int8,
+///        UInt32, UInt16, UInt8, Bool.
+
 namespace minros::interfaces::std_msgs {
 
 // ── Float32 ─────────────────────────────────────────────── 4 byte ──
 
+/// @brief 32-bit float değer mesajı — 4 byte, little-endian wire.
 struct Float32 : MsgBase<Float32> {
     friend struct MsgBase<Float32>;
     static constexpr u8  SIZE      = sizeof(float);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x00;   // std_msgs-yerel: FLOAT32
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x00;   ///< std_msgs-yerel: FLOAT32.
     float value{0.0f};
 private:
     void deserialize(const u8* buf) noexcept { value = utils::endian::load_le<float>(buf); }
@@ -19,11 +24,12 @@ private:
 
 // ── Int32 ────────────────────────────────────────────────── 4 byte ──
 
+/// @brief 32-bit işaretli tamsayı mesajı — 4 byte, little-endian wire.
 struct Int32 : MsgBase<Int32> {
     friend struct MsgBase<Int32>;
     static constexpr u8  SIZE      = sizeof(i32);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x01;   // std_msgs-yerel: INT32
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x01;   ///< std_msgs-yerel: INT32.
     i32 value{0};
 private:
     void deserialize(const u8* buf) noexcept { value = utils::endian::load_le<i32>(buf); }
@@ -32,11 +38,12 @@ private:
 
 // ── Int16 ────────────────────────────────────────────────── 2 byte ──
 
+/// @brief 16-bit işaretli tamsayı mesajı — 2 byte, little-endian wire.
 struct Int16 : MsgBase<Int16> {
     friend struct MsgBase<Int16>;
     static constexpr u8  SIZE      = sizeof(i16);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x02;   // std_msgs-yerel: INT16
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x02;   ///< std_msgs-yerel: INT16.
     i16 value{0};
 private:
     void deserialize(const u8* buf) noexcept { value = utils::endian::load_le<i16>(buf); }
@@ -45,11 +52,12 @@ private:
 
 // ── UInt32 ───────────────────────────────────────────────── 4 byte ──
 
+/// @brief 32-bit işaretsiz tamsayı mesajı — 4 byte, little-endian wire.
 struct UInt32 : MsgBase<UInt32> {
     friend struct MsgBase<UInt32>;
     static constexpr u8  SIZE      = sizeof(u32);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x04;   // std_msgs-yerel: UINT32
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x04;   ///< std_msgs-yerel: UINT32.
     u32 value{0};
 private:
     void deserialize(const u8* buf) noexcept { value = utils::endian::load_le<u32>(buf); }
@@ -58,11 +66,12 @@ private:
 
 // ── UInt16 ───────────────────────────────────────────────── 2 byte ──
 
+/// @brief 16-bit işaretsiz tamsayı mesajı — 2 byte, little-endian wire.
 struct UInt16 : MsgBase<UInt16> {
     friend struct MsgBase<UInt16>;
     static constexpr u8  SIZE      = sizeof(u16);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x05;   // std_msgs-yerel: UINT16
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x05;   ///< std_msgs-yerel: UINT16.
     u16 value{0};
 private:
     void deserialize(const u8* buf) noexcept { value = utils::endian::load_le<u16>(buf); }
@@ -71,11 +80,12 @@ private:
 
 // ── Int8 ─────────────────────────────────────────────────── 1 byte ──
 
+/// @brief 8-bit işaretli tamsayı mesajı — 1 byte.
 struct Int8 : MsgBase<Int8> {
     friend struct MsgBase<Int8>;
     static constexpr u8  SIZE      = sizeof(i8);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x03;   // std_msgs-yerel: INT8
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x03;   ///< std_msgs-yerel: INT8.
     i8 value{0};
 private:
     void deserialize(const u8* buf) noexcept { value = static_cast<i8>(buf[0]); }
@@ -84,11 +94,12 @@ private:
 
 // ── UInt8 ────────────────────────────────────────────────── 1 byte ──
 
+/// @brief 8-bit işaretsiz tamsayı mesajı — 1 byte.
 struct UInt8 : MsgBase<UInt8> {
     friend struct MsgBase<UInt8>;
     static constexpr u8  SIZE      = sizeof(u8);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x06;   // std_msgs-yerel: UINT8
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x06;   ///< std_msgs-yerel: UINT8.
     u8 value{0};
 private:
     void deserialize(const u8* buf) noexcept { value = buf[0]; }
@@ -97,11 +108,12 @@ private:
 
 // ── Bool ─────────────────────────────────────────────────── 1 byte ──
 
+/// @brief Boolean mesajı — 1 byte (0x00/0x01).
 struct Bool : MsgBase<Bool> {
     friend struct MsgBase<Bool>;
     static constexpr u8  SIZE      = sizeof(u8);
-    static constexpr u8  FAMILY_ID = 0x00;   // std_msgs ailesi
-    static constexpr u8  TYPE_ID   = 0x07;   // std_msgs-yerel: BOOL
+    static constexpr u8  FAMILY_ID = 0x00;   ///< std_msgs ailesi.
+    static constexpr u8  TYPE_ID   = 0x07;   ///< std_msgs-yerel: BOOL.
     bool value{false};
 private:
     void deserialize(const u8* buf) noexcept { value = buf[0] != 0; }

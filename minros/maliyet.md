@@ -1,4 +1,4 @@
-# minros'un donanım maliyeti
+# Maliyet {#minros-maliyet}
 
 minros'un temel satış argümanı “öngörülebilir bellek ve gecikme” ise bunun
 sayısal karşılığı açık olmalıdır. Kütüphane ne kadar RAM ayırır, mesaj gönderirken
