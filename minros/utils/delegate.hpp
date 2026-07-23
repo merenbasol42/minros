@@ -6,7 +6,7 @@
 
 
 
-namespace minros {
+namespace minros::utils {
 
 template<typename Ret = void, typename... Args>
 class delegate {
@@ -31,6 +31,6 @@ private:
     void* obj = nullptr;
 };
 
-} // namespace minros
+} // namespace minros::utils
 
 

@@ -91,7 +91,7 @@ namespace minros {
         // TypedCallback<MsgT> = delegate<void, const MsgT&>
         // fn imzası: void fn(const MsgT& msg, void* ctx)
         template<typename MsgT>
-        using TypedCallback = delegate<void, const MsgT&>;
+        using TypedCallback = utils::delegate<void, const MsgT&>;
 
 
         // ── Publisher ─────────────────────────────────────────────────────

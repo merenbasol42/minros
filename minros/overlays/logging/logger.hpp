@@ -125,7 +125,7 @@ template<class NodeT, u8 REASM_BUF = 128>
 class LogSink {
 public:
     // fn(level, msg, len, ctx) — birleştirilmiş tam satır, FLAGS ayıklanmış.
-    using LogCallback = delegate<void, Level, u8*, u8>;
+    using LogCallback = utils::delegate<void, Level, u8*, u8>;
 
     explicit LogSink(NodeT& node) : node_(&node) {}
 

@@ -27,7 +27,7 @@ namespace minros::core {
     class Broker {
     public:
         // fn(payload, payload_len, ctx)
-        using ChannelCallback = delegate<void, u8*, u8>;
+        using ChannelCallback = utils::delegate<void, u8*, u8>;
 
         // CH_ID'ye callback kaydet
         bool subscribe(u8 ch_id, ChannelCallback cb) {

@@ -54,14 +54,14 @@ template<
 class Reliable {
 public:
     // fn(payload, len, ctx) — seq önekı ayıklanmış, kullanıcı verisi.
-    using DataCallback = delegate<void, u8*, u8>;
+    using DataCallback = utils::delegate<void, u8*, u8>;
 
     enum class Error : u8 {
         MAX_RETRIED
     };
 
     // fn(ch_id, err_code, ctx)
-    using ErrorCallback = delegate<void, u8, Error>;
+    using ErrorCallback = utils::delegate<void, u8, Error>;
 
 
     // node'u tutar ve ACK kanalına (CH249) abone olur.

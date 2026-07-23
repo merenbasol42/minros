@@ -108,7 +108,7 @@ public:
     /// (Cortex-M0'da unaligned erişim fault verir); from_bytes memcpy tabanlı →
     /// hem hizalama hem endian güvenli. @ref Event::BEFORE_SET fazında `false`
     /// dönmek değişikliği reddeder.
-    using EventHandler = delegate<bool, u8, Event, const u8*, u8>;
+    using EventHandler = utils::delegate<bool, u8, Event, const u8*, u8>;
 
     /// @brief Boş kurar (tablo sonradan @ref bind_table ile), PARAM_REQ'e abone olur.
     explicit Params(ChannelT& ch, EventHandler on_event = {})

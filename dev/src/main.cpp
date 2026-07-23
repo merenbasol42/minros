@@ -7,7 +7,7 @@
 #include <minros/interfaces/geometry_msgs/vector3.hpp>
 #include <minros/interfaces/std_msgs/primitives.hpp>
 
-// Tipler (u8/u32) ve delegate artık minros namespace'i altında (bkz. 56b2db6).
+// Tipler (u8/u32) minros kökünde; delegate/endian minros::utils altında.
 using namespace minros;
 
 // ─────────────────────────────────────────────────────────────────────────────
