@@ -1,2 +1,9 @@
 **/.**/
 
+# Doxygen üretilmiş çıktı
+docs/html/
+# header.html'i build.sh sürüme göre üretir (gitignore satır-içi yorum desteklemez)
+docs/header.html
+docs/.footer.tmp
+docs/.style.tmp
+

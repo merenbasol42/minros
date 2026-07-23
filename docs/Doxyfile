@@ -1,0 +1,88 @@
+# minros — Doxygen yapılandırması
+# Çalıştır:  doxygen docs/Doxyfile   (repo kökünden)
+# Çıktı:     docs/html/index.html
+
+#---------------------------------------------------------------------------
+# Proje
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "minros"
+PROJECT_BRIEF          = "Gömülü sistemler için ROS-benzeri pub/sub"
+OUTPUT_DIRECTORY       = docs
+OUTPUT_LANGUAGE        = Turkish
+DOXYFILE_ENCODING      = UTF-8
+INPUT_ENCODING         = UTF-8
+
+#---------------------------------------------------------------------------
+# Girdi
+#---------------------------------------------------------------------------
+# Not: Kök README.md BİLEREK dahil değil — repoda 4 tane README.md var, basename
+# çakışması USE_MDFILE_AS_MAINPAGE'i yanıltıp yanlış sayfayı ana sayfa yapıyordu.
+# Landing için benzersiz adlı docs/mainpage.md kullanıyoruz.
+INPUT                  = minros docs/mainpage.md
+FILE_PATTERNS          = *.hpp *.md
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */dev/* */.git/*
+USE_MDFILE_AS_MAINPAGE = docs/mainpage.md
+
+#---------------------------------------------------------------------------
+# Çıkarım — header-only, yorumsuz sembolleri de göster
+#---------------------------------------------------------------------------
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+EXTRACT_PRIVATE        = NO
+HIDE_UNDOC_MEMBERS     = NO
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = YES
+MARKDOWN_SUPPORT       = YES
+BUILTIN_STL_SUPPORT    = YES
+SORT_MEMBER_DOCS       = NO
+
+# Template ağırlıklı kod: makro/CTAD karışmasın diye
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+
+#---------------------------------------------------------------------------
+# Diyagramlar (graphviz/dot kurulu — /usr/bin/dot)
+#---------------------------------------------------------------------------
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+TEMPLATE_RELATIONS     = YES
+
+#---------------------------------------------------------------------------
+# HTML — doxygen-awesome-css "sidebar-only" teması (ROS-benzeri görünüm)
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+SEARCHENGINE           = YES
+
+# sidebar-only temanın gerektirdiği ayarlar:
+GENERATE_TREEVIEW      = YES     # sol gezinme ağacı
+DISABLE_INDEX          = NO      # üst arama çubuğu kalsın
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = LIGHT   # Doxygen >= 1.9.5 için zorunlu (tema kendi rengini verir)
+
+# Tema stil dosyaları (repoda docs/css/ içinde — ekstra adım gerekmez).
+# CSS otomatik dark-mode içerir → sistem temasına göre açık/koyu.
+HTML_EXTRA_STYLESHEET  = docs/css/doxygen-awesome.css \
+                         docs/css/doxygen-awesome-sidebar-only.css \
+                         docs/css/minros-custom.css
+
+# JS eklentileri: sade tema toggle (minros), başlık linki, etkileşimli TOC.
+# Kod-kopyalama YOK — Doxygen'in native kopyalama butonu zaten var.
+# Bunların çalışması için özel bir header.html gerekir; bkz. docs/header.html.
+HTML_HEADER            = docs/header.html
+HTML_EXTRA_FILES       = docs/css/minros-theme-toggle.js \
+                         docs/css/doxygen-awesome-paragraph-link.js \
+                         docs/css/doxygen-awesome-interactive-toc.js
+
+#---------------------------------------------------------------------------
+# Gürültü azalt
+#---------------------------------------------------------------------------
+QUIET                  = NO
+WARN_IF_UNDOCUMENTED   = NO
+WARN_NO_PARAMDOC       = YES

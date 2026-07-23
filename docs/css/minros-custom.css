@@ -1,0 +1,46 @@
+/* minros — doxygen-awesome-css üzerine yerel düzeltmeler.
+   HTML_EXTRA_STYLESHEET listesinde EN SONA eklenir → tema değerlerini ezer. */
+
+@media screen and (min-width: 768px) {
+    html {
+        /* #top konteyneri sabit yükseklikte + overflow:hidden. Varsayılan 120px,
+           proje adı + brief + arama kutusunu birlikte alamayıp arama barını
+           kırpıyordu. Sığacak kadar yükselt. */
+        --top-height: 150px;
+    }
+
+    /* Arama kutusuna üstte biraz nefes payı (kırpılmaya karşı güvenlik). */
+    #main-nav {
+        padding-top: var(--spacing-medium);
+    }
+
+    /* Masaüstü sidebar-only'de arama kutusu tüm genişliği kaplıyor; tema
+       toggle'ına yer açmak için kutuyu bir buton eni kadar daralt. */
+    #MSearchBox {
+        width: calc(var(--side-nav-fixed-width) - calc(2 * var(--spacing-medium)) - var(--searchbar-height) - 1px);
+    }
+    #MSearchField {
+        width: calc(var(--side-nav-fixed-width) - calc(2 * var(--spacing-medium)) - 66px - var(--searchbar-height));
+    }
+}
+
+/* ── Sade tema toggle butonu (minros-theme-toggle.js) ──────────────────────
+   Arama kutusunun yanına oturur; awesome'ın toggle ölçülerini kullanır. */
+minros-theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 0 0 var(--spacing-small);
+    width: var(--searchbar-height);
+    height: var(--searchbar-height);
+    border-radius: var(--searchbar-height);
+    vertical-align: middle;
+    user-select: none;
+    cursor: pointer;
+}
+minros-theme-toggle > svg {
+    transition: transform var(--animation-duration) ease-in-out;
+}
+minros-theme-toggle:active > svg { transform: scale(.5); }
+minros-theme-toggle:hover { background-color: rgba(0,0,0,.03); }
+html.dark-mode minros-theme-toggle:hover { background-color: rgba(0,0,0,.18); }
