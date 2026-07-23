@@ -17,6 +17,9 @@
   "frameworks": "*",
   "platforms": "*",
   "headers": "minros/node.hpp",
+  "build": {
+    "srcDir": "minros"
+  },
   "export": {
     "include": [
       "minros",
