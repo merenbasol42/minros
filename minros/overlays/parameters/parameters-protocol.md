@@ -18,27 +18,33 @@ insan-okur isimler yalnızca host/offline tarafta.
 - **İsimler**: opsiyonel, yalnızca host (minrospy) tarafında `{id: "kp"}` eşlemesi.
   Çekirdek protokol string içermez.
 
-### 2. Değer tipi = mesaj-tip tanımlayıcısı `[FAMILY_ID][TYPE_ID]`
+### 2. Tip wire'da TAŞINMAZ — değer, ham LE byte bloğudur
 
-Bir parametrenin değeri, mevcut `interfaces` mesaj sistemindeki bir **mesaj**tir.
-Tip, mesaj kimliğiyle taşınır: **`[FAMILY_ID(1)][TYPE_ID(1)]`** (bkz.
-`interfaces/msg_base.hpp`). Overlay kendi tip sistemini icat etmez.
+Pub/sub kanalları opak datagramdır; alıcı bir kanalın tipini konvansiyonla bilir.
+Parametre de aynı ilkeyi izler: bir `PARAM_ID`'nin hangi tip olduğu wire'da
+**gönderilmez**, host'ta **statik bir manifest**te (koordinasyon / codegen) yaşar.
+Böylece frame'den `[FAMILY_ID][TYPE_ID]` çifti ve düğümden tip-eşleştirme yolu
+tamamen kalkar.
 
-- **Primitive** değerler de birer mesajdır: `std_msgs` ailesinde `Float32`
-  (`0x00 0x00`), `Int32` (`0x00 0x01`), `Bool` (`0x00 0x07`) …
-- **Kompozit** değerler de aynı mekanizmayla desteklenir: `PidGains`
-  (`0x00 0x0B`), `geometry_msgs::Vector3` (`0x01 0x00`) …
+Değer, tipin sabit-boyutlu **little-endian** byte gösterimidir. minros wire'ı LE,
+hedef MCU'lar (Cortex-M/ESP32/AVR) LE olduğundan **storage'ın bellek görüntüsü =
+wire byte'ları**. Bu sayede düğüm serileştirme yapmaz:
 
-Kompozit desteğinin asıl gerekçesi **atomiklik**: `PidGains` tek parametre olarak
-yazılınca `kp/ki/kd` aynı anda güncellenir; üç ayrı SET'in arasındaki tutarsız
-ara durum oluşmaz.
+- **VALUE**: `[OP][ID]` öneki + storage payload'ı **doğrudan** yayılır (zero-copy).
+- **SET**: gelen wire byte'ları storage'a **doğrudan** `memcpy` edilir.
 
-> **Sınır:** yalnızca **sabit boyutlu** tipler. Değişken uzunluklu / dinamik
-> değerler (string, dizi) fragmentasyon ve değişken frame demek — protokolün
-> felsefesine ters, kapsam dışı.
+> **Sınır 1 — yalnızca little-endian hedef.** Ham-byte yolu big-endian'da
+> geçerli değildir; kayıt sırasında `static_assert(NATIVE_IS_LITTLE)` ile derleme
+> zamanı reddedilir. (minros'un diğer katmanları BE-taşınabilirdir; parametre
+> overlay'i, maliyeti düşürmek için bilinçle LE'ye bağlıdır.)
+>
+> **Sınır 2 — yalnızca sabit boyutlu, padding'siz POD.** `is_trivially_copyable`
+> ve `sizeof(MsgT) == MsgT::SIZE` derleme zamanı zorlanır. Değişken uzunluklu
+> (string, dizi) ve padding'li tipler kapsam dışıdır.
 
-Değerler wire formatına uygun **little-endian** taşınır; mesajın kendi
-`to_bytes()` / `from_bytes()`'ı serileştirmeyi yönetir.
+Kompozit tipler (ör. `PidGains`) tek parametre olarak yazılınca `kp/ki/kd` **aynı
+anda** güncellenir → **atomiklik**; üç ayrı SET arasındaki tutarsız ara durum
+oluşmaz.
 
 ### 3. İki kanal: REQ / RES
 
@@ -50,10 +56,8 @@ Parametre trafiği **iki ayrı kanal** kullanır — istek ve yanıt için birer
 | **246** | `PARAM_RES` | düğüm → host | VALUE, ERR |
 
 Bu ayrım şart, çünkü **reliability overlay'i kanal başına tek publisher varsayar**
-(stop-and-wait, kanal başına tek `seq`/ACK uzayı). Host ve düğüm aynı kanalda
-publish etseydi iki bağımsız `seq` akışı çakışır, dedup ve ACK bozulurdu. Her
-kanalda tek publisher olunca reliability temiz çalışır. Yön kanalla, işlem
-op-code ile ayrılır.
+(stop-and-wait, kanal başına tek `seq`/ACK uzayı). Her kanalda tek publisher
+olunca reliability temiz çalışır. Yön kanalla, işlem op-code ile ayrılır.
 
 Rezerve kanal bloğu (overlay'ler, kullanıcı kanallarıyla çakışmasın diye üstten):
 
@@ -73,11 +77,11 @@ core'un anlamını bilmediği opak bir head önekidir.
 GET   : [OP=0x01][PARAM_ID]
         Verilen parametrenin güncel değerini ister.
 
-SET   : [OP=0x02][PARAM_ID][FAMILY_ID][TYPE_ID][msg bytes...]
-        Değeri yazar. [FAMILY_ID][TYPE_ID] kayıtlı tiple eşleşmelidir.
+SET   : [OP=0x02][PARAM_ID][value bytes...]
+        Değeri yazar. value, tipin LE byte gösterimidir (tip host'ça bilinir).
 
 ── PARAM_RES (CH246, düğüm → host) ────────────────────────────────
-VALUE : [OP=0x03][PARAM_ID][FAMILY_ID][TYPE_ID][msg bytes...]
+VALUE : [OP=0x03][PARAM_ID][value bytes...]
         GET'e yanıt ve/veya başarılı SET onayı.
 
 ERR   : [OP=0x04][PARAM_ID][CODE]
@@ -97,67 +101,89 @@ ERR   : [OP=0x04][PARAM_ID][CODE]
 
 | CODE | Anlam |
 |-----:|-------|
-| 0x00 | UNKNOWN_ID     — bu ID'de kayıtlı parametre yok |
-| 0x01 | TYPE_MISMATCH  — SET'teki `[FAMILY_ID][TYPE_ID]` kayıtlı tiple uyuşmuyor |
-| 0x02 | READ_ONLY      — parametre salt-okunur, yazılamaz |
-| 0x03 | BAD_LENGTH     — msg bytes uzunluğu tipin SIZE'ıyla tutarsız |
+| 0x00 | UNKNOWN_ID  — bu ID'de kayıtlı parametre yok |
+| 0x01 | READ_ONLY   — parametre salt-okunur, yazılamaz |
+| 0x02 | BAD_LENGTH  — value bytes uzunluğu tipin SIZE'ından kısa |
+| 0x03 | REJECTED    — event handler (BEFORE_SET) değişikliği reddetti |
+
+> Tip wire'da taşınmadığı için `TYPE_MISMATCH` diye bir hata yoktur: aynı boyutlu
+> yanlış tip düğümde ayırt edilemez (pub/sub'ın kabul ettiği ödünün aynısı).
+> Doğru tipi göndermek host manifest'inin sorumluluğundadır.
 
 ## Düğüm tarafı davranışı (registry)
 
-Düğüm, sabit boyutlu bir kayıt dizisi (registry) tutar. Her giriş gerçek
-değişkene/mesaja bir pointer'dır (kopya yok, alloc yok) ve tipi bilen **tip-silme
-(type erasure)** codec'lerini saklar — aynen `node.hpp`'deki `TypedSubEntry`
-deseni gibi:
+Kayıtlar **çalışma-zamanı değil, derleme-zamanı** bir `constexpr` tablodur.
+Tablo `.rodata`'ya (flash) yerleşir → registry RAM tüketmez. Boyut giriş
+sayısından türer; "MAX_PARAMS" tavan tahmini ve boşa yatan slot yoktur.
 
-```
-ParamEntry {
-    u8    id;
-    u8    family_id;
-    u8    type_id;
-    u8    size;          // tipin sabit SIZE'ı
-    bool  read_only;
-    void* storage;                              // gerçek değişken/mesaj
-    void  (*write)(void* storage, const u8*);   // from_bytes → storage
-    void  (*read )(const void* storage, u8*);   // to_bytes  ← storage
-}
+```cpp
+constexpr auto TABLE = parameters::table(
+    parameters::rw<0>(&gains),     // okunur/yazılır (kompozit → atomik)
+    parameters::rw<1>(&thresh),    //
+    parameters::ro<2>(&uptime));   // salt-okunur
+
+parameters::Params params{node, TABLE};   // PARAM_REQ'e abone olur (CTAD)
 ```
 
-`register_param<MsgT>(id, &var, read_only)` çağrısında `family_id/type_id/size`
-`MsgT`'den derleme zamanında çıkarılır; `write/read` `MsgT::from_bytes/to_bytes`'a
-bağlanır. Primitive'ler de birer `MsgT` (Float32, Int32, …) olduğu için tek yol
-hem skaler hem kompoziti kapsar.
+Her giriş yalnızca `{id, size, flags, storage*}` tutar (32-bit ABI'de **8 byte**):
+tip etiketi yok, serileştirme fonksiyon pointer'ı yok. `rw<ID>/ro<ID>` içindeki
+`static_assert`'ler (LE, trivially-copyable, padding'siz) ham-byte yolunu
+güvenceye alır. `MsgT` derlemeden sonra "buharlaşır".
 
-- **SET** (CH247): `id` lineer aranır → `[FAMILY_ID][TYPE_ID]` doğrulanır →
-  `write` ile `storage`'a yazılır → onay olarak **VALUE** (CH246) yollanır.
-- **GET** (CH247): `read` ile `storage` okunur → **VALUE** (CH246) yollanır.
+> **Kısıt:** `constexpr` tablo, storage adreslerinin sabit-ifade olmasını
+> gerektirir → parametre değişkenleri **statik ömürlü** (global/static) olmalı.
+
+- **SET** (CH247): `id` aranır → read-only/uzunluk kontrol → event `BEFORE_SET`
+  (reddedilebilir) → storage'a `memcpy` → event `AFTER_SET` → onay **VALUE** (CH246).
+- **GET** (CH247): storage payload'ı doğrudan **VALUE** (CH246) olarak yayılır.
 - Uyuşmazlıkta ilgili **ERR** (CH246) yollanır.
+
+### Event handler (overlay başına tek delegate)
+
+Doğrulama ve değişim-bildirimi **tek bir** callback'te birleşir (param başına
+değil → sıfır ek per-entry maliyet). SET akışında iki faz verilir:
+
+- **BEFORE_SET**: önerilen değer (henüz yazılmadı). `false` → `REJECTED`,
+  storage'a dokunulmaz.
+- **AFTER_SET**: değer yazıldıktan sonra bildirim (dönüş yok sayılır).
+
+İmza `bool(u8 id, Event ev, const u8* bytes, u8 len, void* ctx)`; `bytes` LE ham
+değerdir. Değeri okumak için `reinterpret_cast` **kullanma**, `MsgT::from_bytes`
+kullan: `bytes` frame buffer'ının içine işaret eder ve hizalı olma garantisi
+yoktur (Cortex-M0'da unaligned erişim fault verir); `from_bytes` memcpy tabanlı
+olduğundan hem hizalama hem endian güvenlidir. Tip `id`'ye göre (host manifest'iyle
+aynı anlaşma) bilinir. Aralık/clamp mantığı burada, tipin statik olarak bilindiği
+kullanıcı kodunda yaşar.
 
 ## Güvenilirlik
 
 Yapılandırma verisi kaybolmamalı; bu yüzden SET/VALUE **reliability overlay'i**
-(CH249 ACK) üzerinden güvenilir taşınır. İki kanallı tasarım tam da bunu mümkün
-kılar: `PARAM_REQ`'te tek publisher host, `PARAM_RES`'te tek publisher düğüm →
-her kanal reliability'nin tek-publisher sözleşmesine uyar. Overlay yine de
-reliability'den bağımsızdır; ikisi de `RawNode`'un pub/sub API'sini kullanan
+(CH249 ACK) üzerinden güvenilir taşınabilir. İki kanallı tasarım tam da bunu
+mümkün kılar: `PARAM_REQ`'te tek publisher host, `PARAM_RES`'te tek publisher
+düğüm → her kanal reliability'nin tek-publisher sözleşmesine uyar. Overlay yine
+de reliability'den bağımsızdır; ikisi de `RawNode`'un pub/sub API'sini kullanan
 ayrı katmanlardır.
 
 ## Örnek akış
 
-`kp` bir `Float32` (`0x00 0x00`), `pid` bir `PidGains` (`0x00 0x0B`) parametresi:
+`thresh` bir `Float32`, `pid` bir `PidGains` parametresi. Tip wire'da yok:
 
 ```
 ── Float32 oku/yaz ────────────────────────────────────────────────
-Host → 247:  GET   id=5                       [01][05]
-Düğüm→ 246:  VALUE id=5 Float32 val=1.5        [03][05][00][00][00 00 C0 3F]
+Host → 247:  GET   id=1                     [01][01]
+Düğüm→ 246:  VALUE id=1 val=1.5             [03][01][00 00 C0 3F]
 
-Host → 247:  SET   id=5 Float32 val=2.0        [02][05][00][00][00 00 00 40]
-Düğüm→ 246:  VALUE id=5 Float32 val=2.0        [03][05][00][00][00 00 00 40]
+Host → 247:  SET   id=1 val=2.0             [02][01][00 00 00 40]
+Düğüm→ 246:  VALUE id=1 val=2.0             [03][01][00 00 00 40]
 
 ── PidGains atomik yaz (kp,ki,kd tek seferde) ─────────────────────
-Host → 247:  SET   id=7 PidGains ...           [02][07][00][0B][<12 byte>]
-Düğüm→ 246:  VALUE id=7 PidGains ...           [03][07][00][0B][<12 byte>]
+Host → 247:  SET   id=7 <12 byte>           [02][07][<12 byte>]
+Düğüm→ 246:  VALUE id=7 <12 byte>           [03][07][<12 byte>]
 
-── Hata ───────────────────────────────────────────────────────────
-Host → 247:  SET   id=9 (kayıtsız)             [02][09][00][00][...]
-Düğüm→ 246:  ERR   id=9 UNKNOWN_ID             [04][09][00]
+── Hatalar ────────────────────────────────────────────────────────
+Host → 247:  SET   id=9 (kayıtsız)          [02][09][...]
+Düğüm→ 246:  ERR   id=9 UNKNOWN_ID          [04][09][00]
+
+Host → 247:  SET   id=2 (salt-okunur)       [02][02][...]
+Düğüm→ 246:  ERR   id=2 READ_ONLY           [04][02][01]
 ```

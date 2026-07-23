@@ -17,7 +17,9 @@ namespace minros {
     //                    Dahili broker'a ACK + PARAM_REQ için +2 slot verilir.
     //   MAX_FRAME_DATA — frame DATA alanı maksimum uzunluğu (varsayılan 249)
     //   MAX_RELIABLE   — güvenilir publisher/subscriber başına maksimum kanal (varsayılan 8)
-    //   MAX_PARAMS     — kaydedilebilir maksimum parametre sayısı (varsayılan 8)
+    //
+    // Parametreler artık derleme-zamanı bir constexpr tablo ile tanımlanır
+    // (bkz. aşağıdaki set_params); bu yüzden ayrı bir MAX_PARAMS template'i yoktur.
     //
     // Kullanım:
     //   Node<> node;
@@ -44,10 +46,15 @@ namespace minros {
     //   node.log_error("imu timeout");
     //   // Log ALMAK için host tarafında logging::LogSink kullanılır (minrospy).
     //
-    //   // Parameters (best-effort, CH247 REQ / CH246 RES) — host get/set eder
-    //   std_msgs::Float32 kp;
-    //   node.register_param(5, &kp);              // okunur/yazılır
-    //   node.register_param(6, &version, true);   // salt-okunur
+    //   // Parameters (best-effort, CH247 REQ / CH246 RES) — host get/set eder.
+    //   // Tablo constexpr'dır → flash'ta yaşar; storage'lar statik ömürlü olmalı.
+    //   static std_msgs::Float32 kp;
+    //   static geometry_msgs::Vector3 gain;
+    //   constexpr auto TABLE = overlays::parameters::table(
+    //       overlays::parameters::rw<5>(&kp),
+    //       overlays::parameters::ro<6>(&version));
+    //   node.set_params(TABLE);
+    //   node.set_param_event_handler({&on_param, nullptr});   // opsiyonel doğrulama/bildirim
     //
     //   node.spin_once();   // loop() içinde
     //
@@ -55,8 +62,7 @@ namespace minros {
 
     template<u8 MAX_SUBS       = 16,
              u8 MAX_FRAME_DATA = core::wireframe::MAX_DATA_LEN,
-             u8 MAX_RELIABLE   = 8,
-             u8 MAX_PARAMS     = 8>
+             u8 MAX_RELIABLE   = 8>
     class Node {
         static_assert(MAX_SUBS > 0,   "MAX_SUBS en az 1 olmalı");
         static_assert(MAX_SUBS < 254, "MAX_SUBS 254'ten küçük olmalı (ACK + PARAM_REQ için +2 slot)");
@@ -71,11 +77,16 @@ namespace minros {
         // Params, PARAM_REQ'e abone olur (1 broker slotu) ve PARAM_RES'ten yanıt
         // yollar. Node facade'ında best-effort'tur (node_ üzerinden); güvenilir
         // parametre isteyen standalone Params'ı reliability overlay'i üstüne kurar.
-        using ParamsT   = overlays::parameters::Params<NodeT, MAX_PARAMS>;
+        // Tablo boş kurulur, set_params() ile flash constexpr tabloya bağlanır.
+        using ParamsT   = overlays::parameters::Params<NodeT>;
 
     public:
         // Log seviyeleri (overlays::logging::Level takma adı).
         using LogLevel = overlays::logging::Level;
+
+        // Parametre event fazları + handler imzası (overlays::parameters takma adları).
+        using ParamEvent        = overlays::parameters::Event;
+        using ParamEventHandler = typename ParamsT::EventHandler;
 
         // TypedCallback<MsgT> = delegate<void, const MsgT&>
         // fn imzası: void fn(const MsgT& msg, void* ctx)
@@ -195,16 +206,24 @@ namespace minros {
 
         // ── Parameters (get/set, CH247 REQ / CH246 RES) ───────────────────
         //
-        // Parametreyi host'a okunur/yazılır kılar. storage, MsgT tipinde gerçek
-        // değişkendir (kopya yok); host GET/SET yaptıkça doğrudan güncellenir.
-        // Best-effort'tur (bkz. ParamsT notu).
+        // Parametre tablosu derleme-zamanı constexpr'dır (flash'ta yaşar, RAM
+        // tüketmez); overlays::parameters::table(rw<>/ro<>...) ile kurulur.
+        // storage'lar statik ömürlü olmalı (constexpr adres kısıtı). Host GET/SET
+        // yaptıkça değişkenler doğrudan güncellenir. Best-effort'tur (bkz. ParamsT).
         //
-        //   std_msgs::Float32 kp;
-        //   node.register_param(5, &kp);              // okunur/yazılır
-        //   node.register_param(6, &version, true);   // salt-okunur
-        template<typename MsgT>
-        bool register_param(u8 id, MsgT* storage, bool read_only = false) {
-            return params_.register_param(id, storage, read_only);
+        //   constexpr auto TABLE = overlays::parameters::table(
+        //       overlays::parameters::rw<5>(&kp),
+        //       overlays::parameters::ro<6>(&version));
+        //   node.set_params(TABLE);
+        template<u8 N>
+        void set_params(const overlays::parameters::ParamTable<N>& table) {
+            params_.bind_table(table);
+        }
+
+        // Opsiyonel: SET doğrulama (BEFORE_SET) + değişim bildirimi (AFTER_SET).
+        // fn imzası: bool(u8 id, ParamEvent ev, const u8* bytes, u8 len, void* ctx)
+        void set_param_event_handler(ParamEventHandler h) {
+            params_.set_event_handler(h);
         }
 
     private:

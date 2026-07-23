@@ -5,45 +5,37 @@
 
 namespace minros::overlays::parameters::protocol {
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // minros parameters overlay — wire protokolü
-    //
-    // Rezerve kanal bloğu (protokol overlay'leri):
-    //   249 = reliability ACK
-    //   248 = logging
-    //   247 = parameters REQ  (host → düğüm : GET, SET)
-    //   246 = parameters RES  (düğüm → host : VALUE, ERR)
-    //
-    // İki kanal, reliability'nin "kanal başına tek publisher" sözleşmesini
-    // sağlamak içindir: REQ'te tek publisher host, RES'te tek publisher düğüm.
-    //
-    // Frame'ler (CH_ID = ilgili kanal, payload):
-    //   GET   : [OP=0x01][PARAM_ID]
-    //   SET   : [OP=0x02][PARAM_ID][FAMILY_ID][TYPE_ID][msg bytes...]
-    //   VALUE : [OP=0x03][PARAM_ID][FAMILY_ID][TYPE_ID][msg bytes...]
-    //   ERR   : [OP=0x04][PARAM_ID][CODE]
-    //
-    // OP baytı, core'un anlamını bilmediği opak bir head önekidir (logging FLAGS
-    // gibi). Değer tipi [FAMILY_ID][TYPE_ID] mesaj-tip tanımlayıcısıdır; primitive
-    // (Float32 = 0x00 0x00) ve kompozit (PidGains = 0x00 0x0B) mesajları kapsar.
-    // Ayrıntı: parameters-protocol.md
-    // ─────────────────────────────────────────────────────────────────────────
+    /// @file parameters_protocol.hpp
+    /// @brief Parameters overlay wire protokolü — kanal id'leri, op-code'lar, hata kodları.
+    ///
+    /// İki kanal (REQ/RES), reliability'nin "kanal başına tek publisher"
+    /// sözleşmesini sağlar. Değer wire'da tipsiz, sabit-boyutlu little-endian
+    /// byte bloğudur; tip host manifest'inde yaşar. Tam gerekçe ve örnek akış:
+    /// parameters-protocol.md.
+    ///
+    /// Frame'ler (payload):
+    ///   - GET   : `[OP=0x01][PARAM_ID]`
+    ///   - SET   : `[OP=0x02][PARAM_ID][value bytes...]`
+    ///   - VALUE : `[OP=0x03][PARAM_ID][value bytes...]`
+    ///   - ERR   : `[OP=0x04][PARAM_ID][CODE]`
 
-    constexpr u8 PARAM_REQ_CHANNEL_ID = 247;  // host → düğüm
-    constexpr u8 PARAM_RES_CHANNEL_ID = 246;  // düğüm → host
+    constexpr u8 PARAM_REQ_CHANNEL_ID = 247;  ///< host → düğüm (GET, SET).
+    constexpr u8 PARAM_RES_CHANNEL_ID = 246;  ///< düğüm → host (VALUE, ERR).
 
+    /// @brief Frame payload'ının ilk baytı — işlem türü.
     enum class OpCode : u8 {
-        GET   = 0x01,
-        SET   = 0x02,
-        VALUE = 0x03,
-        ERR   = 0x04,
+        GET   = 0x01,   ///< PARAM_REQ: parametrenin güncel değerini ister.
+        SET   = 0x02,   ///< PARAM_REQ: değeri yazar (LE byte'lar).
+        VALUE = 0x03,   ///< PARAM_RES: GET yanıtı ve/veya SET onayı.
+        ERR   = 0x04,   ///< PARAM_RES: işlem reddedildi (@ref ErrCode).
     };
 
+    /// @brief ERR frame'inin CODE baytı.
     enum class ErrCode : u8 {
-        UNKNOWN_ID    = 0x00,   // bu ID'de kayıtlı parametre yok
-        TYPE_MISMATCH = 0x01,   // [FAMILY_ID][TYPE_ID] kayıtlı tiple uyuşmuyor
-        READ_ONLY     = 0x02,   // parametre salt-okunur
-        BAD_LENGTH    = 0x03,   // msg bytes uzunluğu tipin SIZE'ıyla tutarsız
+        UNKNOWN_ID = 0x00,   ///< Bu ID'de kayıtlı parametre yok.
+        READ_ONLY  = 0x01,   ///< Parametre salt-okunur, yazılamaz.
+        BAD_LENGTH = 0x02,   ///< Value bytes uzunluğu tipin SIZE'ından kısa.
+        REJECTED   = 0x03,   ///< Event handler (BEFORE_SET) değişikliği reddetti.
     };
 
 } // namespace minros::overlays::parameters::protocol
