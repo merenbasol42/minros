@@ -58,6 +58,14 @@ namespace minros::core {
             while (parse_pos < write_pos) {
                 advance();
             }
+            // frame_start'tan önceki her şey (ne HEADER_WAIT'teki eşleşmeyen
+            // gürültü, ne de -bulunmuş bir header'dan sonra- LENGTH/DATA/CRC
+            // bekleyen bir frame'in önündeki çöp önek) bir daha asla okunmaz.
+            // compact() bunu her commit() sonunda geri kazanır — aksi halde
+            // hem sürekli gürültüde write_window() kalıcı olarak sıfıra düşer
+            // hem de büyük bir frame'in DATA'sı, önündeki çöp yüzünden
+            // buffer'a asla tam sığmayabilir.
+            compact();
         }
 
         /// @brief Bir frame tamamlandığında çağrılacak callback'i ayarlar.
@@ -87,20 +95,22 @@ namespace minros::core {
                     } else {
                         // Sadece bu baytı tüket; buffer'daki geri kalanlar geçerli.
                         parse_pos++;
-                        header_matched = 0;
                         // Hatalı bayt yeni bir header başlangıcı olabilir.
-                        if (byte == wireframe::HEADER[0]) {
-                            header_matched = 1;
-                        }
+                        header_matched = (byte == wireframe::HEADER[0]) ? 1 : 0;
                     }
+                    // Değişmez: frame_start, süregelen eşleşmenin (varsa) başlangıcı;
+                    // header_matched==0 ise "buraya kadarki her şey kesin çöp" demek —
+                    // compact()'in atabileceği sınırı bu satır tek elden belirler.
+                    frame_start = parse_pos - header_matched;
                     break;
 
                 case State::LENGTH_WAIT:
                     // DATA en az CH_ID(1) + MIN_PAYLOAD(1) = MIN_DATA_LEN byte olmalı
                     if (byte < wireframe::MIN_DATA_LEN || byte > MAX_DATA) {
                         on_error(Error::INVALID_LENGTH);
-                        parse_pos++;  // geçersiz length baytını tüket
-                        consume();
+                        // length baytını tüketme: HEADER dizisiyle self-overlap
+                        // yapmadığından yeni bir header tam bu baytta başlayabilir.
+                        resync();
                         break;
                     }
                     parse_pos++;
@@ -121,52 +131,105 @@ namespace minros::core {
                     break;
 
                 case State::CRC_WAIT:
-                    parse_pos++;  // CRC baytını tüket
                     if (byte == crc) {
+                        parse_pos++;  // CRC baytını tüket
                         if (on_frame_completed.is_valid()) {
                             on_frame_completed(buffer, data_start, data_len);
                         }
+                        finish_frame();
                     } else {
                         on_error(Error::CRC_MISMATCH);
+                        // DATA/CRC olarak tüketilmiş baytları atmadan yeniden tara —
+                        // içlerinde gerçek bir frame'in header'ı gömülü olabilir.
+                        resync();
                     }
-                    consume();
                     break;
 
                 default:
-                    consume();
+                    discard_before(parse_pos);  // erişilemez dal — savunmacı sıfırlama
                     break;
             }
         }
 
-        // Frame sınırı geçilince çağrılır.
+        // Bir frame başarıyla tamamlanınca çağrılır.
         // parse_pos'tan write_pos'a kadar olan baytları buffer başına kaydırır;
         // bir sonraki frame için state'i sıfırlar.
         // Bir spin_once'ta birden fazla frame varsa veriler kaybolmaz.
-        void consume() {
-            u8 remaining = write_pos - parse_pos;
+        void finish_frame() {
+            discard_before(parse_pos);
+        }
+
+        // Geçersiz LENGTH veya CRC_MISMATCH sonrası çağrılır.
+        // Eşleşmiş header'ı (wireframe::HEADER kendi içinde çakışmadığından
+        // "header değil" olduğu kesin ispatlanmış tek bölge) atar, ama DATA/CRC
+        // olarak tüketilmiş baytları atmaz — gömülü olabilecek gerçek bir header
+        // için HEADER_WAIT'in onları yeniden taramasına izin verir.
+        void resync() {
+            discard_before(static_cast<u8>(frame_start + wireframe::HEADER_SIZE));
+        }
+
+        // buffer[from..write_pos) aralığını buffer başına kaydırır, write_pos'u
+        // günceller ve yeni write_pos'u döner. parse_pos ve diğer alanların nasıl
+        // güncelleneceği çağırana bırakılmıştır — discard_before() ve compact()
+        // bu konuda kasıtlı olarak farklı davranır (bkz. altlarındaki açıklamalar).
+        u8 shift_buffer(u8 from) {
+            u8 remaining = write_pos - from;
             for (u8 i = 0; i < remaining; i++) {
-                buffer[i] = buffer[parse_pos + i];
+                buffer[i] = buffer[from + i];
             }
-            write_pos      = remaining;
+            write_pos = remaining;
+            return remaining;
+        }
+
+        // parse_pos hariç tüm frame alanlarını sıfırlar; write_pos'u parametreyle
+        // verilen değere set eder. reset() ve discard_before() ortak son adımıdır.
+        void reset_frame_state(u8 new_write_pos) {
+            write_pos      = new_write_pos;
             parse_pos      = 0;
             header_matched = 0;
+            frame_start    = 0;
             data_start     = 0;
             data_len       = 0;
             data_remaining = 0;
             crc            = 0;
             state          = State::HEADER_WAIT;
+        }
+
+        // Bir frame başarıyla tamamlanınca (finish_frame()) ya da geçersiz
+        // LENGTH/CRC_MISMATCH sonrası (resync()) çağrılır: buffer[from..write_pos)
+        // aralığını başa kaydırır ve state'i tamamen sıfırlar. parse_pos bilinçli
+        // olarak 0'a çekilir — amaç kaydırılan baytları (resync()'te olduğu gibi)
+        // HEADER_WAIT'ten yeniden taratmak.
+        void discard_before(u8 from) {
+            u8 remaining = shift_buffer(from);
+            reset_frame_state(remaining);
+        }
+
+        // Her commit() sonunda çağrılır. frame_start'tan önceki hiçbir bayt bir
+        // daha asla okunmaz — ister HEADER_WAIT'te eşleşmeyen gürültü olsun,
+        // ister bulunmuş bir header'ın (LENGTH_WAIT/DATA_READING/CRC_WAIT
+        // sırasında) önünde kalmış eski çöp olsun. compact() bu öneki buffer
+        // başına kaydırıp atar; discard_before()'ın aksine state'i sıfırlamaz,
+        // header_matched/data_len/data_remaining/crc gibi "offset olmayan"
+        // alanlara dokunmaz — sadece buffer içindeki konum bilgilerini
+        // (write_pos, parse_pos, data_start) kaymaya göre günceller. Böylece:
+        //   • sürekli gürültüde write_window() kalıcı olarak sıfıra düşmez,
+        //   • buffer'ın ortasında bulunan bir header'dan sonra büyük bir DATA
+        //     alınırken, önündeki çöp yüzünden yer sıkışmaz.
+        void compact() {
+            if (frame_start == 0) return;  // atılacak bir şey yok
+            u8 shift = frame_start;
+            shift_buffer(shift);
+            parse_pos -= shift;
+            if (state == State::DATA_READING || state == State::CRC_WAIT) {
+                data_start -= shift;  // DATA'nın buffer içindeki yeri de kaymış oldu
+            }
+            frame_start = 0;
         }
 
         // Sadece constructor'dan çağrılır.
         void reset() {
-            parse_pos      = 0;
-            write_pos      = 0;
-            header_matched = 0;
-            data_start     = 0;
-            data_len       = 0;
-            data_remaining = 0;
-            crc            = 0;
-            state          = State::HEADER_WAIT;
+            reset_frame_state(0);
         }
 
         FrameCallback on_frame_completed;
@@ -176,6 +239,7 @@ namespace minros::core {
         u8    write_pos;       // producer — yeni baytların yazıldığı konum
         u8    parse_pos;       // consumer — parser'ın okumakta olduğu konum
         u8    header_matched;  // eşleşen header bayt sayısı
+        u8    frame_start;     // mevcut header denemesinin buffer içindeki başlangıç offseti
         u8    data_start;      // DATA bölümünün buffer içindeki başlangıç offseti
         u8    data_len;        // LENGTH alanından gelen toplam DATA uzunluğu
         u8    data_remaining;  // okunmayı bekleyen DATA bayt sayısı
